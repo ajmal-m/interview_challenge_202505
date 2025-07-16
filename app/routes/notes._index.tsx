@@ -11,6 +11,7 @@ import { requireUserId } from "~/services/session.server";
 import { createNote, getNotesByUserId } from "~/services/notes.server";
 import { useState } from "react";
 import { PlusIcon } from "@radix-ui/react-icons";
+import { useNavigate } from "@remix-run/react";
 import {
   Card,
   CardContent,
@@ -26,11 +27,23 @@ import {
 import { Separator } from "~/components/ui/separator";
 import { noteSchema } from "~/schemas/notes";
 import { NotesGridSkeleton } from "~/components/notes/note-skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "~/components/ui/pagination"
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
-  const { notes } = await getNotesByUserId(userId);
-  return json({ notes });
+  const url = new URL(request.url);
+  const page = url.searchParams.get("page") || 1;
+  const limit = url.searchParams.get("limit") || 10;
+  const { notes , totalPages} = await getNotesByUserId(userId, {page : Number(page) , limit: Number(limit) });
+  return json({ notes, totalPages, page : Number(page) });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -72,9 +85,10 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 export default function NotesIndexPage() {
-  const { notes } = useLoaderData<typeof loader>();
+  const { notes , totalPages, page } = useLoaderData<typeof loader>();
   const [isOpen, setIsOpen] = useState(false);
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const isLoading = navigation.state === "loading";
   // Reset the success handled flag when navigation change
   return (
@@ -136,6 +150,33 @@ export default function NotesIndexPage() {
             <CardContent>
               {isLoading ? <NotesGridSkeleton /> : <NotesGrid notes={notes} />}
             </CardContent>
+            {
+              totalPages > 0 && (
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        className={`${page === 1 ? 'pointer-events-none opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} 
+                        onClick={() => navigate(`?page=${page-1}`) }
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext 
+                        className={`${totalPages === page ? 'pointer-events-none opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        onClick={() => navigate(`?page=${page+1}`) }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )
+            }
+            {
+              totalPages > 0 && (
+              <CardContent className="text-center">
+                Page {page} of {totalPages}
+              </CardContent>
+              )
+            }
           </Card>
         </div>
       </div>
